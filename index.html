@@ -302,6 +302,17 @@
 </div>
 
 <script>
+  // ---- Game Constants ----
+  const GRID_SIZE = 100;
+  const STARTING_ENERGY = 50;
+  const FOOD_ENERGY = 50;
+  const CLONE_COST = 10;
+  const CLONE_START_ENERGY = 10;
+  const TICK_DRAIN = 1;
+  const ATTACK_COST = 2;
+  const FOOD_SPAWN_INTERVAL = 2;
+  const VISION_RADIUS = 5;
+
   // ---- Palette & State ----
   const PALETTE = [
     '#ef4444', '#3b82f6', '#eab308', '#a855f7',
@@ -311,6 +322,114 @@
 
   let players = [];
   let nextId = 1;
+
+  // ---- Game State ----
+  const state = {
+    grid: [],
+    get players() { return players; },
+    cells: [],
+    tick: 0,
+    running: false,
+    nextCellId: 1,
+    tickSpeed: 500,
+    timeLimit: 1000,
+    log: []
+  };
+
+  // ---- Grid & Cell Functions ----
+  function initGrid() {
+    state.grid = Array.from({ length: GRID_SIZE }, () =>
+      Array.from({ length: GRID_SIZE }, () => null)
+    );
+  }
+
+  function isInBounds(x, y) {
+    return x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE;
+  }
+
+  function getCellAt(x, y) {
+    if (!isInBounds(x, y)) return null;
+    const entry = state.grid[y][x];
+    if (entry && entry.type === 'cell') {
+      return state.cells.find(c => c.id === entry.id) || null;
+    }
+    return null;
+  }
+
+  function getFoodAt(x, y) {
+    if (!isInBounds(x, y)) return false;
+    const entry = state.grid[y][x];
+    return entry !== null && entry.type === 'food';
+  }
+
+  function spawnCell(playerId, x, y, energy) {
+    const cell = {
+      id: state.nextCellId++,
+      playerId,
+      x,
+      y,
+      energy
+    };
+    state.cells.push(cell);
+    state.grid[y][x] = { type: 'cell', id: cell.id, playerId, energy };
+    return cell;
+  }
+
+  function removeCell(cellId) {
+    const idx = state.cells.findIndex(c => c.id === cellId);
+    if (idx === -1) return;
+    const cell = state.cells[idx];
+    state.grid[cell.y][cell.x] = null;
+    state.cells.splice(idx, 1);
+  }
+
+  function spawnFood() {
+    const empties = [];
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        if (state.grid[y][x] === null) empties.push({ x, y });
+      }
+    }
+    if (empties.length === 0) return;
+    const spot = empties[Math.floor(Math.random() * empties.length)];
+    state.grid[spot.y][spot.x] = { type: 'food' };
+  }
+
+  function getVision(cell) {
+    const result = { cells: [], food: [] };
+    for (let dy = -VISION_RADIUS; dy <= VISION_RADIUS; dy++) {
+      for (let dx = -VISION_RADIUS; dx <= VISION_RADIUS; dx++) {
+        if (Math.abs(dx) + Math.abs(dy) > VISION_RADIUS) continue;
+        const nx = cell.x + dx;
+        const ny = cell.y + dy;
+        if (!isInBounds(nx, ny)) continue;
+        const entry = state.grid[ny][nx];
+        if (!entry) continue;
+        if (entry.type === 'food') {
+          result.food.push({ x: nx, y: ny });
+        } else if (entry.type === 'cell') {
+          const other = getCellAt(nx, ny);
+          if (other) {
+            const owner = other.playerId === cell.playerId
+              ? 'self'
+              : (players.find(p => p.id === other.playerId)?.name || 'unknown');
+            result.cells.push({ x: nx, y: ny, energy: other.energy, owner });
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  function getAdjacentCells(x, y) {
+    const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+    const result = [];
+    for (const [dx, dy] of dirs) {
+      const c = getCellAt(x + dx, y + dy);
+      if (c) result.push(c);
+    }
+    return result;
+  }
 
   // ---- DOM refs ----
   const inputName    = document.getElementById('input-name');
