@@ -515,6 +515,151 @@
   window.addEventListener('resize', resizeCanvas);
   window.addEventListener('load', resizeCanvas);
 
+  // ---- Tick Engine ----
+  function buildRequest(player) {
+    const myCells = state.cells.filter(c => c.playerId === player.id);
+    const cellData = myCells.map(cell => {
+      const vision = getVision(cell);
+      return {
+        id: cell.id,
+        x: cell.x,
+        y: cell.y,
+        energy: cell.energy,
+        vision: { cells: vision.cells, food: vision.food }
+      };
+    });
+    return { tick: state.tick, cells: cellData };
+  }
+
+  async function callEndpoint(player) {
+    const body = buildRequest(player);
+    if (body.cells.length === 0) return {};
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1000);
+    try {
+      const res = await fetch(player.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      const data = await res.json();
+      return data.actions || {};
+    } catch (e) {
+      clearTimeout(timeoutId);
+      return {};
+    }
+  }
+
+  function resolveActions(actions) { /* TODO: Task 5 */ }
+
+  async function tick() {
+    if (!state.running) return;
+    state.tick++;
+
+    // Spawn food on interval
+    if (state.tick % FOOD_SPAWN_INTERVAL === 0) {
+      spawnFood();
+    }
+
+    // Call endpoints for alive players in parallel
+    const alivePlayers = players.filter(p =>
+      state.cells.some(c => c.playerId === p.id)
+    );
+    const results = await Promise.all(
+      alivePlayers.map(p => callEndpoint(p).then(actions => ({ player: p, actions })))
+    );
+
+    // Collect all actions into flat structure
+    const allActions = [];
+    for (const { player, actions } of results) {
+      for (const [cellId, action] of Object.entries(actions)) {
+        allActions.push({
+          cellId: Number(cellId),
+          playerId: player.id,
+          type: action.type,
+          direction: action.direction
+        });
+      }
+    }
+
+    resolveActions(allActions);
+
+    // Passive drain
+    for (const cell of state.cells) {
+      cell.energy -= TICK_DRAIN;
+    }
+
+    // Remove dead cells
+    const dead = state.cells.filter(c => c.energy <= 0);
+    for (const cell of dead) {
+      removeCell(cell);
+    }
+
+    // Update tick counter
+    tickCounter.textContent = 'Tick: ' + state.tick + ' / ' + state.timeLimit;
+
+    render();
+
+    // Check win condition
+    if (state.tick >= state.timeLimit) {
+      state.running = false;
+    }
+
+    if (state.running) {
+      setTimeout(tick, state.tickSpeed);
+    }
+  }
+
+  function startGame() {
+    if (players.length < 2) return;
+    if (state.running) return;
+
+    initGrid();
+    state.tick = 0;
+    state.cells = [];
+    state.nextCellId = 1;
+    state.log = [];
+    state.tickSpeed = parseInt(speedSlider.value, 10) || 200;
+    state.timeLimit = parseInt(timeLimitIn.value, 10) || 1000;
+
+    // Spawn one cell per player, spread at least 20 tiles apart
+    const spawnedPositions = [];
+    for (const player of players) {
+      let x, y, attempts = 0;
+      do {
+        x = Math.floor(Math.random() * GRID_SIZE);
+        y = Math.floor(Math.random() * GRID_SIZE);
+        attempts++;
+      } while (
+        attempts < 1000 &&
+        spawnedPositions.some(pos =>
+          Math.abs(pos.x - x) + Math.abs(pos.y - y) < 20
+        )
+      );
+      spawnCell(player.id, x, y);
+      spawnedPositions.push({ x, y });
+    }
+
+    state.running = true;
+    tick();
+  }
+
+  function pauseGame() {
+    state.running = false;
+  }
+
+  function resetGame() {
+    state.running = false;
+    initGrid();
+    state.tick = 0;
+    state.cells = [];
+    state.nextCellId = 1;
+    tickCounter.textContent = 'Tick: 0 / ' + state.timeLimit;
+    render();
+  }
+
   // ---- DOM refs ----
   const inputName    = document.getElementById('input-name');
   const inputUrl     = document.getElementById('input-url');
@@ -591,6 +736,10 @@
     const limit = parseInt(timeLimitIn.value, 10) || 1000;
     tickCounter.textContent = `Tick: 0 / ${limit}`;
   });
+
+  document.getElementById('btn-start').addEventListener('click', startGame);
+  document.getElementById('btn-pause').addEventListener('click', pauseGame);
+  document.getElementById('btn-reset').addEventListener('click', resetGame);
 </script>
 
 </body>
