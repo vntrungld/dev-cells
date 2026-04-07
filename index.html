@@ -432,6 +432,89 @@
     return result;
   }
 
+  // ---- Canvas Rendering ----
+  const canvas = document.getElementById('game-canvas');
+  const ctx = canvas.getContext('2d');
+
+  function resizeCanvas() {
+    const container = document.getElementById('canvas-area');
+    const size = Math.min(container.clientWidth, container.clientHeight) - 24; // account for padding
+    canvas.width = size;
+    canvas.height = size;
+    canvas.style.width = size + 'px';
+    canvas.style.height = size + 'px';
+    render();
+  }
+
+  function render() {
+    const w = canvas.width;
+    const h = canvas.height;
+    if (w === 0 || h === 0) return;
+
+    const cellSize = w / GRID_SIZE;
+
+    // Background
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, w, h);
+
+    // Grid lines (only when zoomed in enough)
+    if (cellSize > 4) {
+      ctx.strokeStyle = '#2a2a2a';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i <= GRID_SIZE; i++) {
+        const pos = Math.round(i * cellSize) + 0.5;
+        ctx.moveTo(pos, 0);
+        ctx.lineTo(pos, h);
+        ctx.moveTo(0, pos);
+        ctx.lineTo(w, pos);
+      }
+      ctx.stroke();
+    }
+
+    // Draw food
+    ctx.fillStyle = '#4ade80';
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        const entry = state.grid[y]?.[x];
+        if (entry && entry.type === 'food') {
+          ctx.fillRect(
+            Math.round(x * cellSize),
+            Math.round(y * cellSize),
+            Math.ceil(cellSize),
+            Math.ceil(cellSize)
+          );
+        }
+      }
+    }
+
+    // Draw cells
+    for (const cell of state.cells) {
+      const player = players.find(p => p.id === cell.playerId);
+      ctx.fillStyle = player ? player.color : '#888';
+      const px = Math.round(cell.x * cellSize);
+      const py = Math.round(cell.y * cellSize);
+      const cs = Math.ceil(cellSize);
+      ctx.fillRect(px, py, cs, cs);
+
+      // Draw energy text if cells are large enough
+      if (cellSize > 8) {
+        ctx.fillStyle = '#fff';
+        ctx.font = `${Math.max(8, Math.floor(cellSize * 0.55))}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(
+          String(cell.energy),
+          px + cs / 2,
+          py + cs / 2
+        );
+      }
+    }
+  }
+
+  window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('load', resizeCanvas);
+
   // ---- DOM refs ----
   const inputName    = document.getElementById('input-name');
   const inputUrl     = document.getElementById('input-url');
