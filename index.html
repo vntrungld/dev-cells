@@ -257,6 +257,7 @@
         <input type="url" id="input-url" placeholder="http://localhost:3000">
       </div>
       <button id="btn-add-player">Add Player</button>
+      <button id="btn-seed-bots" style="width:100%;margin-top:4px;background:#7c3aed;border-color:#8b5cf6;">Seed 20 Bots (ports 3000-3019)</button>
       <ul id="player-list"></ul>
     </div>
 
@@ -304,21 +305,21 @@
 <script>
   // ---- Game Constants ----
   const GRID_SIZE = 100;
-  const STARTING_ENERGY = 50;
-  const FOOD_ENERGY = 50;
+  const STARTING_ENERGY = 200;
+  const FOOD_ENERGY = 100;
   const CLONE_COST = 10;
   const CLONE_START_ENERGY = 10;
   const TICK_DRAIN = 1;
   const ATTACK_COST = 2;
   const FOOD_SPAWN_INTERVAL = 2;
-  const VISION_RADIUS = 5;
+  const VISION_RADIUS = 7;
 
   // ---- Palette & State ----
   const PALETTE = [
     '#ef4444', '#3b82f6', '#eab308', '#a855f7',
     '#06b6d4', '#f97316', '#ec4899', '#84cc16'
   ];
-  const MAX_PLAYERS = PALETTE.length;
+  const MAX_PLAYERS = Infinity;
 
   let players = [];
   let nextId = 1;
@@ -804,6 +805,9 @@
       spawnedPositions.push({ x, y });
     }
 
+    // Spawn initial food
+    for (let i = 0; i < 50; i++) spawnFood();
+
     addLog(`Game started with ${players.length} players`);
     for (let i = 0; i < players.length; i++) {
       const pos = spawnedPositions[i];
@@ -846,7 +850,7 @@
   // ---- Lobby Logic ----
   function getNextColor() {
     const usedColors = new Set(players.map(p => p.color));
-    return PALETTE.find(c => !usedColors.has(c)) || null;
+    return PALETTE.find(c => !usedColors.has(c)) || PALETTE[players.length % PALETTE.length];
   }
 
   function addPlayer() {
@@ -854,10 +858,8 @@
     const url  = inputUrl.value.trim();
 
     if (!name || !url) return;
-    if (players.length >= MAX_PLAYERS) return;
 
     const color = getNextColor();
-    if (!color) return;
 
     players.push({ id: nextId++, name, url, color });
     inputName.value = '';
@@ -942,6 +944,17 @@
   timeLimitIn.addEventListener('input', () => {
     const limit = parseInt(timeLimitIn.value, 10) || 1000;
     tickCounter.textContent = `Tick: 0 / ${limit}`;
+  });
+
+  document.getElementById('btn-seed-bots').addEventListener('click', () => {
+    const names = ['Alpha','Bravo','Charlie','Delta','Echo','Foxtrot','Golf','Hotel',
+      'India','Juliet','Kilo','Lima','Mike','November','Oscar','Papa','Quebec','Romeo',
+      'Sierra','Tango'];
+    for (let i = 0; i < 20; i++) {
+      const color = getNextColor();
+      players.push({ id: nextId++, name: names[i], url: `http://localhost:${3000 + i}`, color });
+    }
+    renderPlayerList();
   });
 
   document.getElementById('btn-start').addEventListener('click', startGame);
