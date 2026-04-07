@@ -45,11 +45,11 @@ Then open `index.html`, add players (or click "Seed 20 Bots"), and hit Start.
 
 Each tick, your bot tells each cell what to do:
 
-| Action  | Effect                                                                            |
-|---------|-----------------------------------------------------------------------------------|
-| `move`  | Move one tile (up/down/left/right)                                                |
+| Action  | Effect                                                                              |
+|---------|-------------------------------------------------------------------------------------|
+| `move`  | Move one tile (up/down/left/right)                                                  |
 | `clone` | Spawn a new cell in a direction. Energy is split **50/50** between parent and child |
-| `idle`  | Do nothing                                                                        |
+| `idle`  | Do nothing                                                                          |
 
 ### What Happens When You Move
 
@@ -68,7 +68,7 @@ When your cell moves into an enemy cell:
 1. Count your cells adjacent to the target (including the attacker)
 2. Count defender's cells adjacent to the target (including the target)
 3. **Your count > their count** — target dies, drops all its energy as food, your cell moves in
-4. **Your count <= their count** — attack fails, you stay put
+4. **Your count ⇐ their count** — attack fails, you stay put
 
 Adjacent means up/down/left/right (not diagonal).
 
@@ -221,6 +221,34 @@ http.createServer((req, res) => {
     res.end(JSON.stringify({ actions }));
   });
 }).listen(3000, () => console.log('Bot on :3000'));
+```
+
+**PHP:**
+
+```php
+<?php
+$port = $argv[1] ?? 3000;
+$server = stream_socket_server("tcp://0.0.0.0:$port");
+echo "Bot on :$port\n";
+while ($conn = stream_socket_accept($server, -1)) {
+    $req = '';
+    while (($line = fgets($conn)) !== false) { $req .= $line; if (trim($line) === '') break; }
+    $method = strtok($req, ' ');
+    $len = preg_match('/Content-Length:\s*(\d+)/i', $req, $m) ? (int)$m[1] : 0;
+    $body = $len > 0 ? fread($conn, $len) : '';
+    if ($method === 'OPTIONS') { $status = 204; $out = ''; }
+    elseif ($method === 'POST') {
+        $data = json_decode($body, true);
+        $actions = [];
+        foreach ($data['cells'] ?? [] as $cell) {
+            // Your logic here
+            $actions[(string)$cell['id']] = ['type' => 'move', 'direction' => ['up','down','left','right'][array_rand([0,1,2,3])]];
+        }
+        $status = 200; $out = json_encode(['actions' => (object)$actions]);
+    } else { $status = 405; $out = ''; }
+    fwrite($conn, "HTTP/1.1 $status OK\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: POST, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type\r\nContent-Type: application/json\r\nContent-Length: " . strlen($out) . "\r\nConnection: close\r\n\r\n" . $out);
+    fclose($conn);
+}
 ```
 
 ## Game Constants
