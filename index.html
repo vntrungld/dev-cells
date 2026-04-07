@@ -510,6 +510,8 @@
         );
       }
     }
+
+    renderScoreboard();
   }
 
   window.addEventListener('resize', resizeCanvas);
@@ -714,6 +716,11 @@
 
     resolveActions(allActions);
 
+    // Track which players are alive before removing dead cells
+    const aliveBeforeDrain = new Set(
+      players.filter(p => state.cells.some(c => c.playerId === p.id)).map(p => p.id)
+    );
+
     // Passive drain
     for (const cell of state.cells) {
       cell.energy -= TICK_DRAIN;
@@ -722,7 +729,16 @@
     // Remove dead cells
     const dead = state.cells.filter(c => c.energy <= 0);
     for (const cell of dead) {
-      removeCell(cell);
+      const owner = players.find(p => p.id === cell.playerId);
+      addLog(`${owner ? owner.name : 'Unknown'}'s cell died`);
+      removeCell(cell.id);
+    }
+
+    // Check for newly eliminated players
+    for (const p of players) {
+      if (aliveBeforeDrain.has(p.id) && !state.cells.some(c => c.playerId === p.id)) {
+        addLog(`${p.name} eliminated!`);
+      }
     }
 
     // Update tick counter
@@ -731,7 +747,21 @@
     render();
 
     // Check win condition
-    if (state.tick >= state.timeLimit) {
+    const aliveFinal = players.filter(p => state.cells.some(c => c.playerId === p.id));
+
+    if (aliveFinal.length === 1) {
+      addLog(`🏆 ${aliveFinal[0].name} wins!`);
+      state.running = false;
+    } else if (aliveFinal.length === 0) {
+      addLog('Draw — all players eliminated!');
+      state.running = false;
+    } else if (state.tick >= state.timeLimit) {
+      const ranked = players.map(p => ({
+        player: p,
+        totalEnergy: state.cells.filter(c => c.playerId === p.id).reduce((s, c) => s + c.energy, 0)
+      })).sort((a, b) => b.totalEnergy - a.totalEnergy);
+      const winner = ranked[0];
+      addLog(`⏰ Time's up! ${winner.player.name} wins with ${winner.totalEnergy} energy!`);
       state.running = false;
     }
 
@@ -752,6 +782,10 @@
     state.tickSpeed = parseInt(speedSlider.value, 10) || 200;
     state.timeLimit = parseInt(timeLimitIn.value, 10) || 1000;
 
+    // Clear log and scoreboard
+    gameLogEl.innerHTML = '';
+    scoreboardEl.innerHTML = '';
+
     // Spawn one cell per player, spread at least 20 tiles apart
     const spawnedPositions = [];
     for (const player of players) {
@@ -770,6 +804,12 @@
       spawnedPositions.push({ x, y });
     }
 
+    addLog(`Game started with ${players.length} players`);
+    for (let i = 0; i < players.length; i++) {
+      const pos = spawnedPositions[i];
+      addLog(`${players[i].name} spawned at (${pos.x}, ${pos.y})`);
+    }
+
     state.running = true;
     tick();
   }
@@ -784,6 +824,9 @@
     state.tick = 0;
     state.cells = [];
     state.nextCellId = 1;
+    state.log = [];
+    gameLogEl.innerHTML = '';
+    scoreboardEl.innerHTML = '';
     tickCounter.textContent = 'Tick: 0 / ' + state.timeLimit;
     render();
   }
@@ -797,6 +840,8 @@
   const speedValue   = document.getElementById('speed-value');
   const timeLimitIn  = document.getElementById('input-time-limit');
   const tickCounter  = document.getElementById('tick-counter');
+  const gameLogEl    = document.getElementById('game-log');
+  const scoreboardEl = document.getElementById('scoreboard');
 
   // ---- Lobby Logic ----
   function getNextColor() {
@@ -848,6 +893,40 @@
     const d = document.createElement('div');
     d.textContent = str;
     return d.innerHTML;
+  }
+
+  // ---- Game Log ----
+  function addLog(message) {
+    const prefix = `[Tick ${state.tick}] `;
+    const entry = prefix + message;
+    state.log.push(entry);
+    const div = document.createElement('div');
+    div.textContent = entry;
+    gameLogEl.prepend(div);
+  }
+
+  // ---- Scoreboard ----
+  function renderScoreboard() {
+    const rows = players.map(p => {
+      const myCells = state.cells.filter(c => c.playerId === p.id);
+      const cellCount = myCells.length;
+      const totalEnergy = myCells.reduce((sum, c) => sum + c.energy, 0);
+      const eliminated = cellCount === 0 && state.tick > 0;
+      return { player: p, cellCount, totalEnergy, eliminated };
+    });
+    rows.sort((a, b) => b.totalEnergy - a.totalEnergy);
+
+    scoreboardEl.innerHTML = '';
+    for (const r of rows) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;';
+      const swatch = `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${r.player.color};flex-shrink:0;"></span>`;
+      const status = r.eliminated
+        ? '<span style="color:#ef4444;font-weight:600;font-size:11px;">ELIMINATED</span>'
+        : `<span style="color:#aaa;font-size:12px;">${r.cellCount} cells &middot; ${r.totalEnergy} energy</span>`;
+      row.innerHTML = `${swatch}<span style="font-weight:600;min-width:80px;">${esc(r.player.name)}</span>${status}`;
+      scoreboardEl.appendChild(row);
+    }
   }
 
   // ---- Events ----
