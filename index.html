@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dev Cells</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #1a1a1a;
+    color: #eee;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  #app {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    height: 100vh;
+  }
+
+  /* ---- Canvas area ---- */
+  #canvas-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    min-width: 0;
+  }
+
+  #game-canvas {
+    width: 100%;
+    height: 100%;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 4px;
+  }
+
+  /* ---- Sidebar ---- */
+  #sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+    border-left: 1px solid #333;
+    overflow-y: auto;
+    height: 100vh;
+  }
+
+  .section {
+    background: #242424;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 12px;
+  }
+
+  .section h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #999;
+    margin-bottom: 10px;
+  }
+
+  /* ---- Inputs & buttons ---- */
+  input[type="text"],
+  input[type="url"],
+  input[type="number"] {
+    width: 100%;
+    padding: 6px 8px;
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #eee;
+    font-size: 13px;
+    outline: none;
+  }
+
+  input:focus {
+    border-color: #666;
+  }
+
+  button {
+    padding: 6px 12px;
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #eee;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: #444;
+  }
+
+  button:active {
+    background: #555;
+  }
+
+  /* ---- Lobby ---- */
+  .lobby-field {
+    margin-bottom: 8px;
+  }
+
+  .lobby-field label {
+    display: block;
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 3px;
+  }
+
+  #btn-add-player {
+    width: 100%;
+    margin-top: 4px;
+    background: #2563eb;
+    border-color: #3b82f6;
+  }
+
+  #btn-add-player:hover { background: #1d4ed8; }
+
+  #player-list {
+    list-style: none;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .player-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+
+  .player-color {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .player-name {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .player-url {
+    flex: 1;
+    color: #888;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .btn-remove {
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 4px;
+  }
+
+  .btn-remove:hover { color: #ef4444; }
+
+  /* ---- Game Controls ---- */
+  .controls-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .controls-row button { flex: 1; }
+
+  #btn-start  { background: #16a34a; border-color: #22c55e; }
+  #btn-start:hover  { background: #15803d; }
+  #btn-pause  { background: #ca8a04; border-color: #eab308; }
+  #btn-pause:hover  { background: #a16207; }
+  #btn-reset  { background: #dc2626; border-color: #ef4444; }
+  #btn-reset:hover  { background: #b91c1c; }
+
+  .control-field {
+    margin-bottom: 8px;
+  }
+
+  .control-field label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 3px;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: #3b82f6;
+  }
+
+  /* ---- Tick counter ---- */
+  #tick-counter {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding: 6px;
+    color: #aaa;
+  }
+
+  /* ---- Scoreboard ---- */
+  #scoreboard { min-height: 40px; }
+
+  /* ---- Game Log ---- */
+  #game-log {
+    min-height: 80px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 12px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    color: #888;
+    padding: 6px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Canvas area -->
+  <div id="canvas-area">
+    <canvas id="game-canvas"></canvas>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+
+    <!-- Lobby -->
+    <div class="section" id="lobby-section">
+      <h2>Lobby</h2>
+      <div class="lobby-field">
+        <label for="input-name">Player Name</label>
+        <input type="text" id="input-name" placeholder="e.g. AlphaBot">
+      </div>
+      <div class="lobby-field">
+        <label for="input-url">Endpoint URL</label>
+        <input type="url" id="input-url" placeholder="http://localhost:3000">
+      </div>
+      <button id="btn-add-player">Add Player</button>
+      <ul id="player-list"></ul>
+    </div>
+
+    <!-- Game Controls -->
+    <div class="section">
+      <h2>Controls</h2>
+      <div class="controls-row">
+        <button id="btn-start">Start</button>
+        <button id="btn-pause">Pause</button>
+        <button id="btn-reset">Reset</button>
+      </div>
+      <div class="control-field">
+        <label>
+          <span>Tick Speed</span>
+          <span id="speed-value">500ms</span>
+        </label>
+        <input type="range" id="input-speed" min="100" max="2000" step="100" value="500">
+      </div>
+      <div class="control-field">
+        <label for="input-time-limit">Time Limit (ticks)</label>
+        <input type="number" id="input-time-limit" value="1000" min="1">
+      </div>
+    </div>
+
+    <!-- Tick Counter -->
+    <div class="section">
+      <div id="tick-counter">Tick: 0 / 1000</div>
+    </div>
+
+    <!-- Scoreboard -->
+    <div class="section">
+      <h2>Scoreboard</h2>
+      <div id="scoreboard"></div>
+    </div>
+
+    <!-- Game Log -->
+    <div class="section" style="flex:1; display:flex; flex-direction:column;">
+      <h2>Game Log</h2>
+      <div id="game-log" style="flex:1;"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ---- Palette & State ----
+  const PALETTE = [
+    '#ef4444', '#3b82f6', '#eab308', '#a855f7',
+    '#06b6d4', '#f97316', '#ec4899', '#84cc16'
+  ];
+  const MAX_PLAYERS = PALETTE.length;
+
+  let players = [];
+  let nextId = 1;
+
+  // ---- DOM refs ----
+  const inputName    = document.getElementById('input-name');
+  const inputUrl     = document.getElementById('input-url');
+  const btnAdd       = document.getElementById('btn-add-player');
+  const playerListEl = document.getElementById('player-list');
+  const speedSlider  = document.getElementById('input-speed');
+  const speedValue   = document.getElementById('speed-value');
+  const timeLimitIn  = document.getElementById('input-time-limit');
+  const tickCounter  = document.getElementById('tick-counter');
+
+  // ---- Lobby Logic ----
+  function getNextColor() {
+    const usedColors = new Set(players.map(p => p.color));
+    return PALETTE.find(c => !usedColors.has(c)) || null;
+  }
+
+  function addPlayer() {
+    const name = inputName.value.trim();
+    const url  = inputUrl.value.trim();
+
+    if (!name || !url) return;
+    if (players.length >= MAX_PLAYERS) return;
+
+    const color = getNextColor();
+    if (!color) return;
+
+    players.push({ id: nextId++, name, url, color });
+    inputName.value = '';
+    inputUrl.value  = '';
+    renderPlayerList();
+  }
+
+  function removePlayer(id) {
+    players = players.filter(p => p.id !== id);
+    renderPlayerList();
+  }
+
+  function renderPlayerList() {
+    playerListEl.innerHTML = '';
+    for (const p of players) {
+      const li = document.createElement('li');
+      li.className = 'player-item';
+      li.innerHTML = `
+        <span class="player-color" style="background:${p.color}"></span>
+        <span class="player-name">${esc(p.name)}</span>
+        <span class="player-url">${esc(p.url)}</span>
+      `;
+      const btn = document.createElement('button');
+      btn.className = 'btn-remove';
+      btn.textContent = '\u00d7';
+      btn.addEventListener('click', () => removePlayer(p.id));
+      li.appendChild(btn);
+      playerListEl.appendChild(li);
+    }
+  }
+
+  function esc(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // ---- Events ----
+  btnAdd.addEventListener('click', addPlayer);
+
+  inputName.addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(); });
+  inputUrl.addEventListener('keydown',  e => { if (e.key === 'Enter') addPlayer(); });
+
+  speedSlider.addEventListener('input', () => {
+    speedValue.textContent = speedSlider.value + 'ms';
+  });
+
+  timeLimitIn.addEventListener('input', () => {
+    const limit = parseInt(timeLimitIn.value, 10) || 1000;
+    tickCounter.textContent = `Tick: 0 / ${limit}`;
+  });
+</script>
+
+</body>
+</html>
