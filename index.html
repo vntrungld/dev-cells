@@ -363,6 +363,7 @@
   }
 
   function spawnCell(playerId, x, y, energy) {
+    if (!isInBounds(x, y) || state.grid[y][x] !== null) return null;
     const cell = {
       id: state.nextCellId++,
       playerId,
@@ -371,7 +372,7 @@
       energy
     };
     state.cells.push(cell);
-    state.grid[y][x] = { type: 'cell', id: cell.id, playerId, energy };
+    state.grid[y][x] = { type: 'cell', id: cell.id, playerId };
     return cell;
   }
 
