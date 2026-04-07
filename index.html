@@ -307,10 +307,8 @@
   const GRID_SIZE = 100;
   const STARTING_ENERGY = 200;
   const FOOD_ENERGY = 100;
-  const CLONE_COST = 10;
-  const CLONE_START_ENERGY = 10;
+  const CLONE_MIN_ENERGY = 2;
   const TICK_DRAIN = 1;
-  const ATTACK_COST = 2;
   const FOOD_SPAWN_INTERVAL = 2;
   const VISION_RADIUS = 7;
 
@@ -571,11 +569,12 @@
     for (const a of parsed) {
       if (a.type !== 'clone' || !a.cell) continue;
       const cell = a.cell;
-      if (cell.energy >= CLONE_COST) {
-        cell.energy -= CLONE_COST;
+      if (cell.energy >= CLONE_MIN_ENERGY) {
+        const half = Math.floor(cell.energy / 2);
         const tile = state.grid[a.targetY]?.[a.targetX];
         if (isInBounds(a.targetX, a.targetY) && tile === null) {
-          spawnCell(a.playerId, a.targetX, a.targetY, CLONE_START_ENERGY);
+          cell.energy -= half;
+          spawnCell(a.playerId, a.targetX, a.targetY, half);
         }
       }
     }
@@ -617,11 +616,6 @@
         } else {
           movers.sort((a, b) => b.cell.energy - a.cell.energy);
           if (movers[0].cell.energy === movers[1].cell.energy) {
-            for (const m of movers) {
-              if (m.cell.energy === movers[0].cell.energy) {
-                m.cell.energy -= ATTACK_COST;
-              }
-            }
             winner = null;
           } else {
             winner = movers[0];
@@ -629,7 +623,6 @@
               winner.cell.energy += movers[i].cell.energy;
               outcomes.push({ type: 'remove', removeCellIds: [movers[i].cellId] });
             }
-            winner.cell.energy -= ATTACK_COST;
           }
         }
       }
@@ -657,11 +650,10 @@
         if (attackerCount > defenderCount) {
           outcomes.push({
             type: 'combat-win', cell: attacker,
-            tx, ty, energyDelta: defender.energy - ATTACK_COST,
+            tx, ty, energyDelta: defender.energy,
             removeCellIds: [defender.id]
           });
         } else {
-          attacker.energy -= ATTACK_COST;
         }
       } else if (hasFood && !targetIsLeaving) {
         outcomes.push({ type: 'move-food', cell: winner.cell, tx, ty, energyDelta: FOOD_ENERGY });
