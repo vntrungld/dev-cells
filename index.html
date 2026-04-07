@@ -594,39 +594,37 @@
       targetMap.get(key).push(a);
     }
 
-    // Process each target tile
+    // Track which cells are moving away (their positions will be vacated)
+    const movingAway = new Set(moveActions.map(a => a.cell?.id).filter(Boolean));
+
+    // Pass 1: Decide outcomes without mutating the grid
+    const outcomes = [];
+
     for (const [key, movers] of targetMap) {
       const [tx, ty] = key.split(',').map(Number);
 
-      // Determine single mover for this tile
       let winner = null;
       if (movers.length === 1) {
         winner = movers[0];
       } else {
-        // Multiple movers to same tile
         const owners = new Set(movers.map(m => m.playerId));
         if (owners.size === 1) {
-          // Same owner: first by cellId wins
           movers.sort((a, b) => a.cellId - b.cellId);
           winner = movers[0];
         } else {
-          // Different owners: biggest energy wins
           movers.sort((a, b) => b.cell.energy - a.cell.energy);
           if (movers[0].cell.energy === movers[1].cell.energy) {
-            // Equal top energy: both stay, both lose 2
             for (const m of movers) {
               if (m.cell.energy === movers[0].cell.energy) {
                 m.cell.energy -= ATTACK_COST;
               }
             }
-            // Remaining movers with less energy just stay put
             winner = null;
           } else {
             winner = movers[0];
-            // Loser energy absorbed, minus cost
             for (let i = 1; i < movers.length; i++) {
               winner.cell.energy += movers[i].cell.energy;
-              removeCell(movers[i].cellId);
+              outcomes.push({ type: 'remove', removeCellIds: [movers[i].cellId] });
             }
             winner.cell.energy -= ATTACK_COST;
           }
@@ -634,55 +632,52 @@
       }
 
       if (!winner) continue;
-      if (!state.cells.includes(winner.cell)) continue; // winner was removed
+      if (!state.cells.includes(winner.cell)) continue;
 
       const existingCell = getCellAt(tx, ty);
+      const targetIsLeaving = existingCell && movingAway.has(existingCell.id);
       const hasFood = getFoodAt(tx, ty);
 
-      if (existingCell) {
-        // Phase 4: Combat — attacker moves into enemy cell
+      if (existingCell && !targetIsLeaving) {
+        // Combat
         const attacker = winner.cell;
         const defender = existingCell;
-
-        // Count adjacent support
         const adjacent = getAdjacentCells(tx, ty);
-        let attackerCount = 1; // the moving cell itself
-        let defenderCount = 1; // the target cell itself
+        let attackerCount = 1;
+        let defenderCount = 1;
         for (const adj of adjacent) {
-          if (adj.id === attacker.id) continue; // don't double-count
+          if (adj.id === attacker.id) continue;
           if (adj.playerId === attacker.playerId) attackerCount++;
           if (adj.playerId === defender.playerId) defenderCount++;
         }
 
         if (attackerCount > defenderCount) {
-          const defenderEnergy = defender.energy;
-          removeCell(defender.id);
-          // Move attacker to target tile
-          state.grid[attacker.y][attacker.x] = null;
-          attacker.energy += defenderEnergy;
-          attacker.energy -= ATTACK_COST;
-          attacker.x = tx;
-          attacker.y = ty;
-          state.grid[ty][tx] = { type: 'cell', id: attacker.id, playerId: attacker.playerId };
+          outcomes.push({
+            type: 'combat-win', cell: attacker,
+            tx, ty, energyDelta: defender.energy - ATTACK_COST,
+            removeCellIds: [defender.id]
+          });
         } else {
-          // Attack fails
           attacker.energy -= ATTACK_COST;
         }
-      } else if (hasFood) {
-        // Move to food tile
-        const cell = winner.cell;
-        state.grid[cell.y][cell.x] = null;
-        cell.energy += FOOD_ENERGY;
-        cell.x = tx;
-        cell.y = ty;
-        state.grid[ty][tx] = { type: 'cell', id: cell.id, playerId: cell.playerId };
+      } else if (hasFood && !targetIsLeaving) {
+        outcomes.push({ type: 'move-food', cell: winner.cell, tx, ty, energyDelta: FOOD_ENERGY });
       } else {
-        // Move to empty tile
-        const cell = winner.cell;
-        state.grid[cell.y][cell.x] = null;
-        cell.x = tx;
-        cell.y = ty;
-        state.grid[ty][tx] = { type: 'cell', id: cell.id, playerId: cell.playerId };
+        outcomes.push({ type: 'move', cell: winner.cell, tx, ty });
+      }
+    }
+
+    // Pass 2: Apply all outcomes (grid mutations happen here)
+    for (const o of outcomes) {
+      if (o.removeCellIds) {
+        for (const id of o.removeCellIds) removeCell(id);
+      }
+      if (o.cell && o.tx !== undefined) {
+        state.grid[o.cell.y][o.cell.x] = null;
+        if (o.energyDelta) o.cell.energy += o.energyDelta;
+        o.cell.x = o.tx;
+        o.cell.y = o.ty;
+        state.grid[o.ty][o.tx] = { type: 'cell', id: o.cell.id, playerId: o.cell.playerId };
       }
     }
   }
