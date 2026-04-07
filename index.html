@@ -800,7 +800,7 @@
           Math.abs(pos.x - x) + Math.abs(pos.y - y) < 20
         )
       );
-      spawnCell(player.id, x, y);
+      spawnCell(player.id, x, y, STARTING_ENERGY);
       spawnedPositions.push({ x, y });
     }
 
