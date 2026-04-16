@@ -39,6 +39,19 @@
   .stat-label { font-size: 10px; text-transform: uppercase; color: #888; letter-spacing: 0.06em; }
   .stat-value { font-size: 16px; font-weight: 700; color: #eee; font-variant-numeric: tabular-nums; }
 
+  #btn-mute {
+    background: none;
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: #eee;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 4px 8px;
+  }
+  #btn-mute:hover { background: #2a2a2a; }
+  #btn-mute.muted { color: #555; border-color: #333; }
+
   #app {
     display: grid;
     grid-template-columns: 1fr 360px;
@@ -397,6 +410,7 @@
     <div class="stat"><span class="stat-label">Food</span><span class="stat-value" id="stat-food">0</span></div>
     <div class="stat"><span class="stat-label">Elapsed</span><span class="stat-value" id="stat-time">0s</span></div>
   </div>
+  <button id="btn-mute" title="Toggle music">♪</button>
 </header>
 
 <div id="app">
@@ -958,6 +972,8 @@
       if (o.removeCellIds) {
         for (const id of o.removeCellIds) removeCell(id);
       }
+      if (o.type === 'combat-win') SFX.kill();
+      if (o.type === 'move-food') SFX.eat();
       if (o.cell && o.tx !== undefined) {
         state.grid[o.cell.y][o.cell.x] = null;
         if (o.energyDelta) o.cell.energy += o.energyDelta;
@@ -1022,6 +1038,7 @@
     for (const cell of dead) {
       const owner = players.find(p => p.id === cell.playerId);
       addLog(`${owner ? owner.name : 'Unknown'}'s cell died`);
+      SFX.die();
       state.dyingCells.push({
         x: cell.x, y: cell.y,
         size: Math.max(6, Math.max(0, cell.energy + TICK_DRAIN) * 0.3),
@@ -1035,6 +1052,7 @@
     for (const p of players) {
       if (aliveBeforeDrain.has(p.id) && !state.cells.some(c => c.playerId === p.id)) {
         addLog(`${p.name} eliminated!`);
+        SFX.eliminate();
       }
     }
 
@@ -1124,6 +1142,7 @@
     state.gameStartTime = performance.now();
     state.lastTickTime = performance.now();
     state.running = true;
+    SFX.init();
     tick();
   }
 
@@ -1211,6 +1230,7 @@
     winTitleEl.textContent = name;
     winSubEl.textContent = subtitle;
     winOverlay.classList.add('visible');
+    SFX.win();
   }
 
   setButtonStates(false);
@@ -1342,6 +1362,14 @@
   document.getElementById('btn-pause').addEventListener('click', pauseGame);
   document.getElementById('btn-reset').addEventListener('click', resetGame);
 
+  document.getElementById('btn-mute').addEventListener('click', () => {
+    const muted = SFX.toggleMute();
+    const btn = document.getElementById('btn-mute');
+    btn.textContent = muted ? '♪̶' : '♪';
+    btn.classList.toggle('muted', muted);
+    btn.title = muted ? 'Unmute sounds' : 'Mute sounds';
+  });
+
   document.getElementById('btn-toggle-sidebar').addEventListener('click', () => {
     document.getElementById('app').classList.toggle('sidebar-hidden');
     setTimeout(resizeCanvas, 220);
@@ -1388,6 +1416,115 @@
     tooltipEl.classList.remove('visible');
     canvas.style.cursor = 'default';
   });
+
+  // ---- Music Engine ----
+  const SFX = (() => {
+    let ctx = null;
+    let masterGain = null;
+    let muted = false;
+    const lastPlayed = {};
+
+    function init() {
+      if (ctx) return;
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = ctx.createGain();
+      masterGain.gain.value = 0.4;
+      masterGain.connect(ctx.destination);
+    }
+
+    function throttled(name, minGap, fn) {
+      const now = performance.now();
+      if ((now - (lastPlayed[name] || 0)) < minGap) return;
+      lastPlayed[name] = now;
+      fn();
+    }
+
+    function osc(freq, endFreq, dur, vol, type) {
+      const t = ctx.currentTime;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = type || 'sine';
+      o.frequency.setValueAtTime(freq, t);
+      if (endFreq !== freq) o.frequency.exponentialRampToValueAtTime(endFreq, t + dur * 0.8);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(masterGain);
+      o.start(t); o.stop(t + dur + 0.01);
+    }
+
+    function noise(dur, vol, hpFreq) {
+      const t = ctx.currentTime;
+      const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass'; hp.frequency.value = hpFreq || 1000;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.connect(hp); hp.connect(g); g.connect(masterGain);
+      src.start(t);
+    }
+
+    return {
+      init,
+
+      eat() {
+        if (muted || !ctx) return;
+        throttled('eat', 80, () => osc(880, 1200, 0.07, 0.12, 'sine'));
+      },
+
+      kill() {
+        if (muted || !ctx) return;
+        throttled('kill', 130, () => {
+          osc(280, 110, 0.13, 0.22, 'sawtooth');
+          noise(0.06, 0.04, 3000);
+        });
+      },
+
+      die() {
+        if (muted || !ctx) return;
+        throttled('die', 200, () => osc(320, 80, 0.18, 0.10, 'sine'));
+      },
+
+      eliminate() {
+        if (muted || !ctx) return;
+        const t = ctx.currentTime;
+        [440, 349, 261, 196].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.type = 'square'; o.frequency.value = f;
+          const s = t + i * 0.09;
+          g.gain.setValueAtTime(0.14, s);
+          g.gain.exponentialRampToValueAtTime(0.0001, s + 0.12);
+          o.connect(g); g.connect(masterGain);
+          o.start(s); o.stop(s + 0.14);
+        });
+      },
+
+      win() {
+        if (muted || !ctx) return;
+        const t = ctx.currentTime;
+        [261, 330, 392, 523, 659].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.type = 'square'; o.frequency.value = f;
+          const s = t + i * 0.1;
+          g.gain.setValueAtTime(0.18, s);
+          g.gain.exponentialRampToValueAtTime(0.0001, s + 0.28);
+          o.connect(g); g.connect(masterGain);
+          o.start(s); o.stop(s + 0.3);
+        });
+      },
+
+      toggleMute() {
+        muted = !muted;
+        if (masterGain && ctx)
+          masterGain.gain.setTargetAtTime(muted ? 0 : 0.4, ctx.currentTime, 0.05);
+        return muted;
+      }
+    };
+  })();
 </script>
 
 </body>
