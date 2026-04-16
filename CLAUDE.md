@@ -22,7 +22,7 @@ Key sections within `index.html`:
 1. Pass 1: Compute intended positions, resolve clones, then determine move outcomes (collisions, combat) without mutating the grid
 2. Pass 2: Apply all outcomes (grid mutations) at once
 
-Combat requires **numerical superiority** — count adjacent allied cells vs adjacent defender cells. No solo kills.
+Combat is energy-based — the cell with higher energy wins and absorbs the loser's energy. Equal energy = both survive, attacker stays put.
 
 **Sample bots** (`sample-bot/`): Reference implementations in Python, Node.js, and PHP. All use only stdlib, handle CORS, and implement the same strategy (clone when energy > 30, otherwise chase nearest food).
 
@@ -46,7 +46,7 @@ In the UI: add players (or click "Seed 20 Bots"), then click Start.
 ## Bot Endpoint Contract
 
 **Request** (POST): `{ tick, cells: [{ id, x, y, energy, vision: { cells, food } }] }`
-**Response**: `{ actions: { "<cellId>": { type: "move"|"clone"|"idle", direction: "up"|"down"|"left"|"right" } } }`
+**Response**: `{ actions: { "<cellId>": { type: "move"|"clone"|"merge"|"idle", direction: "up"|"down"|"left"|"right" } } }`
 
 Bot has 1 second to respond or all cells idle. Vision radius is 7 (Manhattan distance).
 
@@ -59,7 +59,8 @@ Bot has 1 second to respond or all cells idle. Vision radius is 7 (Manhattan dis
 | Food energy      | +100               |
 | Passive drain    | -1/tick            |
 | Clone            | 50/50 energy split |
-| Failed attack    | no cost            |
+| Merge            | combines energy    |
+| Combat           | stronger wins (70%), weaker upsets (30%) |
 | Vision radius    | 7                  |
 | Food spawn       | every 2 ticks      |
 | Initial food     | 50                 |

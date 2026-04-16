@@ -579,7 +579,19 @@
       }
     }
 
-    // Phase 3: Resolve moves
+    // Phase 3: Resolve merges
+    for (const a of parsed) {
+      if (a.type !== 'merge' || !a.cell) continue;
+      if (!state.cells.includes(a.cell)) continue;
+      if (!isInBounds(a.targetX, a.targetY)) continue;
+      const target = getCellAt(a.targetX, a.targetY);
+      if (target && target.playerId === a.playerId) {
+        target.energy += a.cell.energy;
+        removeCell(a.cell.id);
+      }
+    }
+
+    // Phase 4: Resolve moves
     const moveActions = parsed.filter(a => a.type === 'move' && a.cell);
 
     // Build map of target -> list of movers for collision detection
@@ -635,25 +647,30 @@
       const hasFood = getFoodAt(tx, ty);
 
       if (existingCell && !targetIsLeaving) {
-        // Combat
+        // Combat: stronger cell wins, but weaker has 30% upset chance
         const attacker = winner.cell;
         const defender = existingCell;
-        const adjacent = getAdjacentCells(tx, ty);
-        let attackerCount = 1;
-        let defenderCount = 1;
-        for (const adj of adjacent) {
-          if (adj.id === attacker.id) continue;
-          if (adj.playerId === attacker.playerId) attackerCount++;
-          if (adj.playerId === defender.playerId) defenderCount++;
-        }
 
-        if (attackerCount > defenderCount) {
-          outcomes.push({
-            type: 'combat-win', cell: attacker,
-            tx, ty, energyDelta: defender.energy,
-            removeCellIds: [defender.id]
-          });
-        } else {
+        if (attacker.energy !== defender.energy) {
+          const stronger = attacker.energy > defender.energy ? attacker : defender;
+          const weaker = stronger === attacker ? defender : attacker;
+          const upset = Math.random() < 0.3;
+          const victor = upset ? weaker : stronger;
+          const loser = victor === attacker ? defender : attacker;
+
+          if (victor === attacker) {
+            outcomes.push({
+              type: 'combat-win', cell: attacker,
+              tx, ty, energyDelta: defender.energy,
+              removeCellIds: [defender.id]
+            });
+          } else {
+            outcomes.push({
+              type: 'combat-win', cell: defender,
+              tx: defender.x, ty: defender.y, energyDelta: attacker.energy,
+              removeCellIds: [attacker.id]
+            });
+          }
         }
       } else if (hasFood && !targetIsLeaving) {
         outcomes.push({ type: 'move-food', cell: winner.cell, tx, ty, energyDelta: FOOD_ENERGY });
