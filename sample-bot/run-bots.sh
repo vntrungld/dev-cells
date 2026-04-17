@@ -3,7 +3,7 @@
 PIDS=()
 for i in $(seq 0 19); do
   PORT=$((3000 + i))
-  python "$(dirname "$0")/bot.py" "$PORT" &
+  python3 "$(dirname "$0")/bot.py" "$PORT" &
   PIDS+=($!)
 done
 
