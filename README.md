@@ -9,8 +9,6 @@ A competitive programming game: write an HTTP bot, control cells on a grid, outl
 
 No server, no dependencies — the entire game runs in a single `index.html` opened in a browser.
 
-> For in-depth rules with visual diagrams, see [HOW_TO_PLAY.md](HOW_TO_PLAY.md).
-
 ---
 
 ## Quick Start
