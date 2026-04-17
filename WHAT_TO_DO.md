@@ -1,9 +1,8 @@
-## What to do to play this game
 You need to write a bot for this game
 
-### 1. Check out sample bots in `./sample-bot`
+## 1. Check out sample bots in `./sample-bot`
 
-### 2. Start a Bot
+## 2. Start a Bot
 
 ```bash
 # Python
@@ -16,7 +15,7 @@ node sample-bot/bot.js 3000
 php sample-bot/bot.php 3000
 ```
 
-### 3. Writing Your Own Bot
+## 3. Writing Your Own Bot
 
 Pick your language and write your own bot:
 
@@ -26,7 +25,7 @@ The minimal templates in the README are the quickest starting point — copy one
 
 One thing to note: your bot must handle CORS headers since the browser makes cross-origin requests. The sample bots already do this.
 
-### 4. Example strategies to implement
+## 4. Example strategies to implement
 
 Here are some strategies to get you thinking:
 
