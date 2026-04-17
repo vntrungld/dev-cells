@@ -598,7 +598,8 @@
     lastTickTime: 0,
     dyingCells: [],         // [{ x, y, energy, color, deathTime }]
     gameStartTime: 0,
-    readyPhase: false
+    readyPhase: false,
+    starting: false
   };
 
   const SPAWN_ANIM_MS = 220;
@@ -1275,7 +1276,7 @@
 
   function startGame() {
     if (players.length < 2) return;
-    if (state.running) return;
+    if (state.running || state.starting) return;
 
     initGrid();
     state.tick = 0;
@@ -1320,6 +1321,7 @@
     setButtonStates(true);
     state.dyingCells = [];
     state.readyPhase = true;
+    state.starting = true;
     SFX.init();
 
     // 5s ready phase (show names), then 3-2-1-GO
@@ -1365,6 +1367,7 @@
           countdownEl.classList.remove('visible');
           countdownNum.style.fontSize = '';
           state.running = true;
+          state.starting = false;
           state.gameStartTime = performance.now();
           state.lastTickTime = performance.now();
           SFX.start();
@@ -1404,6 +1407,7 @@
     state.dyingCells = [];
     state.gameStartTime = 0;
     state.readyPhase = false;
+    state.starting = false;
     state.nextCellId = 1;
     state.log = [];
     gameLogEl.innerHTML = '';
