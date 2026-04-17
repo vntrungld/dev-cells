@@ -60,7 +60,7 @@ Bot has 1 second to respond or all cells idle. Vision radius is 7 (Manhattan dis
 | Passive drain    | -1/tick            |
 | Clone            | 50/50 energy split |
 | Merge            | combines energy    |
-| Combat           | adjacent (incl. diagonal) triggers fight; win chance = your energy / total energy |
+| Combat           | adjacent (incl. diagonal) triggers fight; win chance = your energy / (your energy + enemy energy) |
 | Vision radius    | 7                  |
 | Food spawn       | every 2 ticks      |
 | Initial food     | 50                 |
