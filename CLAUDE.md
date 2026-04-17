@@ -37,8 +37,8 @@ python sample-bot/bot.py 3000
 node sample-bot/bot.js 3000
 php sample-bot/bot.php 3000
 
-# Start 20 bots for testing (ports 3000-3019)
-bash sample-bot/run-bots.sh
+# Single server handles all 20 seeded bots via path routing
+python sample-bot/bot.py 3000
 ```
 
 In the UI: add players (or click "Seed 20 Bots"), then click Start.

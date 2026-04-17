@@ -27,7 +27,7 @@ php sample-bot/bot.php 3000          # PHP
 
 **4. Click Start** and watch your cells compete!
 
-> **Want opponents?** Click **"Seed 20 Bots"**, then run `bash sample-bot/run-bots.sh` to start 20 bots on ports 3000-3019.
+> **Want opponents?** Click **"Seed 20 Bots"** — a single server handles all 20 bots via path routing (`/bot/0` through `/bot/19`).
 
 ---
 

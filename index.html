@@ -510,7 +510,7 @@
         <input type="url" id="input-url" placeholder="http://localhost:3000">
       </div>
       <button id="btn-add-player">Add Player</button>
-      <button id="btn-seed-bots" style="width:100%;margin-top:4px;background:#7c3aed;border-color:#8b5cf6;">Seed 20 Bots (ports 3000-3019)</button>
+      <button id="btn-seed-bots" style="width:100%;margin-top:4px;background:#7c3aed;border-color:#8b5cf6;">Seed 20 Bots (localhost:3000)</button>
       <ul id="player-list"></ul>
     </div>
 
@@ -1621,7 +1621,7 @@
       'Sierra','Tango'];
     for (let i = 0; i < 20; i++) {
       const color = getNextColor();
-      players.push({ id: nextId++, name: names[i], url: `http://localhost:${3000 + i}`, color, shape: SHAPES[players.length % SHAPES.length] });
+      players.push({ id: nextId++, name: names[i], url: `http://localhost:3000/bot/${i}`, color, shape: SHAPES[players.length % SHAPES.length] });
     }
     renderPlayerList();
   });
