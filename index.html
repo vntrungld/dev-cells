@@ -588,9 +588,6 @@
       if (!state.cells.includes(a.cell)) continue; // cell was removed
       if (!isInBounds(a.targetX, a.targetY)) continue; // out of bounds: stay put
 
-      const targetCell = getCellAt(a.targetX, a.targetY);
-      if (targetCell && targetCell.playerId === a.playerId) continue; // own cell: stay put
-
       const key = `${a.targetX},${a.targetY}`;
       if (!targetMap.has(key)) targetMap.set(key, []);
       targetMap.get(key).push(a);
@@ -634,7 +631,14 @@
       const targetIsLeaving = existingCell && movingAway.has(existingCell.id);
       const hasFood = getFoodAt(tx, ty);
 
-      if (existingCell && !targetIsLeaving) {
+      if (existingCell && !targetIsLeaving && existingCell.playerId === winner.playerId) {
+        // Merge: moving into own cell — combine energy, remove the mover
+        outcomes.push({
+          type: 'merge', cell: existingCell,
+          tx, ty, energyDelta: winner.cell.energy,
+          removeCellIds: [winner.cell.id]
+        });
+      } else if (existingCell && !targetIsLeaving) {
         const attacker = winner.cell;
         const defender = existingCell;
         const adjacent = getAdjacentCells(tx, ty);
