@@ -588,9 +588,6 @@
       if (!state.cells.includes(a.cell)) continue; // cell was removed
       if (!isInBounds(a.targetX, a.targetY)) continue; // out of bounds: stay put
 
-      const targetCell = getCellAt(a.targetX, a.targetY);
-      if (targetCell && targetCell.playerId === a.playerId) continue; // own cell: stay put
-
       const key = `${a.targetX},${a.targetY}`;
       if (!targetMap.has(key)) targetMap.set(key, []);
       targetMap.get(key).push(a);
@@ -634,8 +631,14 @@
       const targetIsLeaving = existingCell && movingAway.has(existingCell.id);
       const hasFood = getFoodAt(tx, ty);
 
-      if (existingCell && !targetIsLeaving) {
-        // Combat
+      if (existingCell && !targetIsLeaving && existingCell.playerId === winner.playerId) {
+        // Merge: moving into own cell — combine energy, remove the mover
+        outcomes.push({
+          type: 'merge', cell: existingCell,
+          tx, ty, energyDelta: winner.cell.energy,
+          removeCellIds: [winner.cell.id]
+        });
+      } else if (existingCell && !targetIsLeaving) {
         const attacker = winner.cell;
         const defender = existingCell;
         const adjacent = getAdjacentCells(tx, ty);
@@ -647,13 +650,23 @@
           if (adj.playerId === defender.playerId) defenderCount++;
         }
 
-        if (attackerCount > defenderCount) {
+        // Win chance proportional to energy share
+        const attackerChance = attacker.energy / (attacker.energy + defender.energy);
+        const victor = Math.random() < attackerChance ? attacker : defender;
+        const loser = victor === attacker ? defender : attacker;
+
+        if (victor === attacker) {
           outcomes.push({
             type: 'combat-win', cell: attacker,
-            tx, ty, energyDelta: defender.energy,
-            removeCellIds: [defender.id]
+            tx, ty, energyDelta: loser.energy,
+            removeCellIds: [loser.id]
           });
         } else {
+          outcomes.push({
+            type: 'combat-win', cell: defender,
+            tx: defender.x, ty: defender.y, energyDelta: loser.energy,
+            removeCellIds: [loser.id]
+          });
         }
       } else if (hasFood && !targetIsLeaving) {
         outcomes.push({ type: 'move-food', cell: winner.cell, tx, ty, energyDelta: FOOD_ENERGY });
@@ -673,6 +686,34 @@
         o.cell.x = o.tx;
         o.cell.y = o.ty;
         state.grid[o.ty][o.tx] = { type: 'cell', id: o.cell.id, playerId: o.cell.playerId };
+      }
+    }
+
+    // Phase 5: Adjacent combat (including diagonals)
+    const fought = new Set();
+    for (const cell of [...state.cells]) {
+      if (fought.has(cell.id)) continue;
+      if (!state.cells.includes(cell)) continue;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const neighbor = getCellAt(cell.x + dx, cell.y + dy);
+          if (!neighbor || neighbor.playerId === cell.playerId) continue;
+          if (fought.has(neighbor.id)) continue;
+          if (!state.cells.includes(neighbor)) continue;
+
+          // Win chance proportional to energy share
+          const cellChance = cell.energy / (cell.energy + neighbor.energy);
+          const victor = Math.random() < cellChance ? cell : neighbor;
+          const loser = victor === cell ? neighbor : cell;
+
+          victor.energy += loser.energy;
+          removeCell(loser.id);
+          fought.add(victor.id);
+          fought.add(loser.id);
+          break; // this cell already fought, move on
+        }
+        if (fought.has(cell.id)) break;
       }
     }
   }
